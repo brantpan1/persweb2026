@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Lenis from "lenis";
 import Navigation from "@/components/Navigation";
 import Text3D from "@/components/Text3D";
+import BrushstrokeRelief from "@/components/BrushstrokeRelief";
 
 export default function Home() {
   useEffect(() => {
@@ -33,6 +34,7 @@ export default function Home() {
       <Navigation />
 
       <section className="hero hero-3d">
+        <BrushstrokeRelief />
         <Text3D lines={textLines} className="hero-text-3d" />
       </section>
     </main>

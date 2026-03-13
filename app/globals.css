@@ -33,7 +33,7 @@
 }
 
 * {
-  cursor: crosshair;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='6' cy='6' r='3.5' fill='%23000' fill-opacity='.45'/%3E%3Ccircle cx='6' cy='6' r='1.5' fill='%23000' fill-opacity='.8'/%3E%3C/svg%3E") 6 6, default;
 }
 
 a, button {
@@ -71,6 +71,18 @@ body {
   width: 0;
   height: 0;
   overflow: hidden;
+}
+
+/* WebGL ink transition canvas */
+.ink-transition-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100vh;
+  z-index: 1000;
+  pointer-events: none;
+  display: block;
 }
 
 /* ==================== */
@@ -277,21 +289,6 @@ body {
   min-height: 100vh;
 }
 
-.page-slide {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100vh;
-  background: var(--fg);
-  z-index: 1000;
-  pointer-events: none;
-}
-
-.page-slide-2 {
-  background: var(--gray);
-  z-index: 999;
-}
 
 /* ==================== */
 /* NAVIGATION           */
@@ -400,6 +397,8 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
+  position: relative;
+  overflow: hidden;
 }
 
 .hero-text-3d {
@@ -407,6 +406,28 @@ body {
   flex-direction: column;
   align-items: center;
   gap: var(--space-md);
+  position: relative;
+  z-index: 1;
+}
+
+/* ==================== */
+/* BRUSHSTROKE RELIEF    */
+/* ==================== */
+
+.brushstroke-canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 0;
+  pointer-events: auto;
+}
+
+.brushstroke-canvas canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 
 .text-3d-line {
