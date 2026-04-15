@@ -65,6 +65,41 @@ body {
   color: var(--bg);
 }
 
+/* ==================== */
+/* INTRO OVERLAY        */
+/* ==================== */
+
+.intro-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.intro-progress-track {
+  width: 120px;
+  height: 1px;
+  background: rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+}
+
+.intro-progress-fill {
+  width: 100%;
+  height: 100%;
+  background: var(--fg);
+  transform-origin: left;
+  transition: transform 0.3s ease;
+}
+
+.intro-content-wrapper {
+  position: relative;
+  z-index: 1;
+  will-change: opacity;
+}
+
 /* SVG Filters */
 .svg-filters {
   position: absolute;
@@ -73,25 +108,6 @@ body {
   overflow: hidden;
 }
 
-/* Ink transition (chroma-keyed video + blackout overlay) */
-.ink-transition-canvas {
-  position: fixed;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 1001;
-  pointer-events: none;
-  display: block;
-}
-
-.ink-transition-overlay {
-  position: fixed;
-  inset: 0;
-  background: #000;
-  z-index: 1000;
-  pointer-events: none;
-  will-change: opacity;
-}
 
 /* ==================== */
 /* TYPE HIERARCHY       */

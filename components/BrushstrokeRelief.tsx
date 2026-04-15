@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useMemo, useEffect } from "react";
+import { useRef, useMemo, useEffect, useState, useCallback } from "react";
 import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import * as THREE from "three";
 
@@ -26,6 +26,7 @@ uniform float uTime;
 uniform float uDecay;
 uniform vec2 uRes;
 uniform float uActive;
+uniform float uDrift;
 
 varying vec2 vUv;
 
@@ -60,11 +61,11 @@ void main() {
   vec2 uv = vUv;
   vec2 asp = vec2(uRes.x / uRes.y, 1.0);
 
-  // Organic drift — morph the accumulated ink slowly
+  // Organic drift — morph the accumulated ink slowly (suppressed during intro)
   vec2 morph = vec2(
     fbm(uv * 3.0 + uTime * 0.05) - 0.5,
     fbm(uv * 3.0 + uTime * 0.05 + 43.0) - 0.5
-  ) * 0.0018;
+  ) * 0.0018 * uDrift;
 
   float h = texture2D(uPrev, uv + morph).r * uDecay;
 
@@ -103,7 +104,15 @@ void main() {
 
     // Organic brush wobble — radius varies along the stroke
     float wobble = noise(vec2(t * 40.0 + ang * 2.0, uTime * 0.3));
-    float r = (0.02 + spd * 0.035) * (0.8 + wobble * 0.4);
+
+    // Calligraphy brush simulation — width depends on stroke direction
+    // Brush held at ~45° angle: perpendicular motion = thick, parallel = thin
+    float brushAngle = 0.785; // 45° — standard Chinese brush hold
+    float dirEffect = abs(sin(ang - brushAngle));
+    // Width ranges from 0.55x (moving along brush axis) to 1.3x (perpendicular)
+    float dirWidth = 0.55 + dirEffect * 0.75;
+
+    float r = (0.014 + spd * 0.02) * dirWidth * (1.0 + smoothstep(0.008, 0.04, spd) * 0.15) * (0.85 + wobble * 0.3);
 
     // Irregular brush boundary — distort the distance field
     float boundaryNoise = fbm(vec2(atan(rd.y, rd.x) * 3.0 + t * 10.0, length(rd) * 50.0));
@@ -122,7 +131,7 @@ void main() {
     float edgeMask = smoothstep(0.2, 0.8, edgeDist);
     bristle = mix(1.0, smoothstep(0.18, 0.55, bristle), edgeMask * 0.85);
 
-    // Flying white (飞白) — dry-brush at speed
+    // Flying white — dry-brush at speed
     float dryness = smoothstep(0.01, 0.05, spd);
     float dryNoise = fbm(uv * 80.0 + vec2(ang, uTime * 0.03));
     bristle = mix(bristle, bristle * smoothstep(0.1, 0.6, dryNoise), dryness * 0.55);
@@ -133,7 +142,7 @@ void main() {
     stroke *= bristle;
     deposit = max(deposit, stroke);
 
-    // Ink pools at stroke edges (like real ink concentration at boundaries)
+    // Ink pools at stroke edges
     float poolZone = smoothstep(r * 0.5, r * 0.9, d) * smoothstep(r * 1.4, r * 0.9, d);
     edgePool = max(edgePool, poolZone * bristle * 0.5);
   }
@@ -148,16 +157,15 @@ void main() {
     deposit = max(deposit, splatter * grainMask);
   }
 
-  // Accumulate ink + edge pooling
-  float inkAmount = 0.14 * (0.5 + spd * 3.5);
+  // Accumulate ink + edge pooling — more dramatic at slow speed (press), lighter at fast
+  float inkAmount = 0.18 * (0.6 + spd * 2.5);
   h = min(h + deposit * inkAmount + edgePool * 0.06, 1.0);
   gl_FragColor = vec4(h, 0.0, 0.0, 1.0);
 }`;
 
 /* ───────────────────────────────────────────────────────
    Display pass — renders the height map as dark ink
-   with subtle relief texture, like ink calligraphy
-   on paper with visible brushstroke depth.
+   with subtle relief texture.
    ─────────────────────────────────────────────────────── */
 
 const displayVert = /* glsl */ `
@@ -212,17 +220,17 @@ void main() {
   vec3 L = normalize(vec3(0.4, 0.6, 1.0));
   float diff = dot(N, L) * 0.5 + 0.5;
 
-  // Ink edge concentration — gradient magnitude shows stroke boundaries
+  // Ink edge concentration
   float grad = length(vec2(hR - hL, hU - hD)) * 20.0;
   float edgeDarken = smoothstep(0.0, 1.0, grad) * 0.15;
 
-  // Dark ink — thicker is deeper black, with edge pooling
+  // Dark ink
   float inkDensity = smoothstep(0.0, 0.05, h);
   float shade = mix(0.16, 0.01, smoothstep(0.0, 0.45, h));
   shade -= edgeDarken;
   shade = max(shade, 0.0);
 
-  // Paper fiber texture — subtle grain visible through thin ink
+  // Paper fiber texture
   float paperFiber = fbm(vUv * 800.0) * 0.08;
   float thinInkMask = 1.0 - smoothstep(0.0, 0.3, h);
   shade += paperFiber * thinInkMask;
@@ -237,11 +245,169 @@ void main() {
 }`;
 
 /* ───────────────────────────────────────────────────────
+   Intro animation — draw 潘 (Pan) character
+   Coordinate system: x 0→1 left→right, y 0→1 bottom→top
+   ─────────────────────────────────────────────────────── */
+
+interface PathPoint { x: number; y: number }
+interface StrokeDef { points: PathPoint[]; duration: number; gap?: number }
+
+// Catmull-Rom spline for smooth, flowing curves through control points
+function catmullRom(pts: [number, number][], n = 30): PathPoint[] {
+  if (pts.length < 2) return pts.map(([x, y]) => ({ x, y }));
+  const out: PathPoint[] = [];
+  // Pad start/end for tangent calculation
+  const p = [pts[0], ...pts, pts[pts.length - 1]];
+  const segments = p.length - 3;
+
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const seg = Math.min(Math.floor(t * segments), segments - 1);
+    const lt = (t * segments) - seg;
+    const lt2 = lt * lt, lt3 = lt2 * lt;
+
+    const p0 = p[seg], p1 = p[seg + 1], p2 = p[seg + 2], p3 = p[seg + 3];
+    // Catmull-Rom coefficients (tension 0.5)
+    out.push({
+      x: 0.5 * ((2 * p1[0]) + (-p0[0] + p2[0]) * lt + (2 * p0[0] - 5 * p1[0] + 4 * p2[0] - p3[0]) * lt2 + (-p0[0] + 3 * p1[0] - 3 * p2[0] + p3[0]) * lt3),
+      y: 0.5 * ((2 * p1[1]) + (-p0[1] + p2[1]) * lt + (2 * p0[1] - 5 * p1[1] + 4 * p2[1] - p3[1]) * lt2 + (-p0[1] + 3 * p1[1] - 3 * p2[1] + p3[1]) * lt3),
+    });
+  }
+  return out;
+}
+
+function generateIntroPaths(): StrokeDef[] {
+  // 潘 — authentic semi-cursive (行書) style
+  // Principles from calligraphy research:
+  //   - 氵 simplified to single flowing gesture (not three separate dots)
+  //   - Left radical simplified, right component emphasized
+  //   - Connected writing (連綿体) — brush stays on paper within components
+  //   - No hesitation — continuous rhythm, mind precedes brush
+  //   - Overfilled brush gradually dries out (dark → light contrast)
+
+  const scale = 0.75;
+  const cx = 0.5;
+  const cy = 0.52;
+
+  const hw = (x: number, y: number): [number, number] => [
+    cx + ((x - 512) / 1024) * scale,
+    cy + ((y - 400) / 1024) * scale,
+  ];
+
+  // ─── Stroke 1: 氵 water radical — single circular flowing gesture ───
+  // Rounded S-curve sweep, looping between dot positions
+  const shuiRadical: [number, number][] = [
+    [230,770],                    // entry at top
+    [270,740],[290,700],          // arc right
+    [280,660],[230,620],          // loop back left
+    [180,570],[150,520],          // round into second position
+    [160,480],[200,450],          // curve right
+    [210,400],[190,340],          // arc back left, descending
+    [160,260],[150,180],          // sweeping round descent
+    [160,110],[190,60],           // curve at bottom
+    [220,80],[260,150],           // circular upturn
+    [280,250],[300,370],          // rising arc exit
+  ];
+
+  // ─── Stroke 2: 番 top — looping cursive arcs ───
+  // Circular sweeping entry, loops through dot positions
+  const fanTop: [number, number][] = [
+    [730,800],[710,800],          // entry from top
+    [660,810],[580,780],          // sweeping leftward arc
+    [500,740],[440,720],          // round curve down
+    [420,700],[400,670],          // loop into dot area
+    [410,630],[450,600],          // circular upturn through dot
+    [490,590],[530,610],          // arc right
+    [590,650],[650,690],          // loop up toward second dot
+    [710,720],[730,710],          // round into second position
+    [740,680],[720,650],          // arc down
+    [680,620],[640,610],          // exit with curve
+  ];
+
+  // ─── Stroke 3: 横 + vertical + falling — one circular flowing gesture ───
+  // Round sweeping horizontal, loops into vertical, arcs through falling strokes
+  const middleSection: [number, number][] = [
+    [340,515],[400,510],          // horizontal entry
+    [520,530],[660,560],          // sweeping arc across
+    [780,570],[840,555],          // horizontal crest
+    [820,560],[750,575],          // round reversal
+    [650,620],[580,680],          // arcing up into vertical start
+    [560,720],[550,690],          // loop at top
+    [560,620],[565,520],          // flowing vertical descent
+    [560,420],[555,360],          // continue curving down
+    [545,400],[520,460],          // round curve back up
+    [490,490],[440,440],          // arcing into left-falling
+    [400,380],[360,340],          // sweeping 撇 curve
+    [330,310],[340,320],          // soft round exit
+    [380,350],[440,400],          // circular return
+    [510,460],[570,510],          // arc into right-falling
+    [630,500],[710,450],          // sweeping right arc
+    [800,400],[900,380],          // broad 捺 curve
+    [950,375],[965,375],          // exit
+  ];
+
+  // ─── Stroke 4: 田 box — circular continuous motion ───
+  // Rounded corners, flowing loops at direction changes
+  const tianBox: [number, number][] = [
+    [370,280],[385,265],          // entry top-left
+    [400,240],[415,160],          // curve down left wall
+    [425,80],[432,10],            // continue down
+    [435,-5],[435,20],            // soft round bottom
+    [435,100],[440,200],          // circular upturn
+    [445,265],[470,275],          // arc into top
+    [530,280],[620,290],          // sweep across top
+    [710,300],[750,300],          // continue right
+    [775,290],[785,270],          // round top-right corner
+    [790,240],[785,180],          // curve down right wall
+    [778,110],[765,40],           // continue descending
+    [750,0],[740,-30],            // round bottom-right
+    [735,-10],[720,60],           // circular upturn
+    [700,130],[660,160],          // arc into inner horizontal
+    [600,170],[530,160],          // sweep across inner
+    [480,150],[470,152],          // reach left
+    [485,160],[530,190],          // loop into inner vertical
+    [555,220],[568,240],          // arc at top
+    [575,210],[578,150],          // vertical descent
+    [575,100],[570,60],           // continue down
+    [562,40],[540,25],            // round exit
+    [510,15],[480,20],            // arc into bottom horizontal
+    [470,25],[510,35],            // sweep entry
+    [570,45],[640,50],            // across bottom
+    [690,48],[700,44],            // exit
+  ];
+
+  const groups = [shuiRadical, fanTop, middleSection, tianBox];
+  const durations = [0.50, 0.55, 0.80, 0.85]; // total ~2.7s + gaps
+  const gaps = [0.04, 0.03, 0.03, 0];
+
+  return groups.map((pts, i) => ({
+    points: catmullRom(pts.map(([x, y]) => hw(x, y)), pts.length * 5),
+    duration: durations[i],
+    gap: gaps[i],
+  }));
+}
+
+/* ───────────────────────────────────────────────────────
    Scene — FBO ping-pong, mouse tracking, render loop
    ─────────────────────────────────────────────────────── */
 
-function PaintScene() {
+interface PaintSceneProps {
+  onReady?: () => void;
+  introActive?: boolean;
+  onIntroDone?: () => void;
+}
+
+function PaintScene({ onReady, introActive, onIntroDone }: PaintSceneProps) {
   const { gl, size } = useThree();
+
+  // Signal ready once canvas is mounted
+  const readyFired = useRef(false);
+  useEffect(() => {
+    if (!readyFired.current) {
+      readyFired.current = true;
+      onReady?.();
+    }
+  }, [onReady]);
 
   // Ping-pong render targets
   const targets = useMemo(() => {
@@ -256,7 +422,6 @@ function PaintScene() {
     ];
   }, []);
 
-  // Offscreen scene for the stamp pass
   const offScene = useMemo(() => new THREE.Scene(), []);
   const offCam = useMemo(
     () => new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1),
@@ -276,12 +441,12 @@ function PaintScene() {
           uDecay: { value: 0.996 },
           uRes: { value: new THREE.Vector2(1, 1) },
           uActive: { value: 0 },
+          uDrift: { value: 0 },
         },
       }),
     []
   );
 
-  // Add fullscreen quad to offscreen scene
   useEffect(() => {
     const mesh = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), stampMat);
     offScene.add(mesh);
@@ -291,7 +456,6 @@ function PaintScene() {
     };
   }, [offScene, stampMat]);
 
-  // Cleanup
   useEffect(() => {
     return () => {
       targets[0].dispose();
@@ -342,32 +506,151 @@ function PaintScene() {
     stampMat.uniforms.uRes.value.set(w, h);
   }, [size, targets, stampMat]);
 
+  // Intro animation state
+  const introStrokes = useMemo(() => generateIntroPaths(), []);
+  // Precompute cumulative start times for each stroke (per-stroke gaps)
+  const strokeTimeline = useMemo(() => {
+    const timeline: { start: number; end: number }[] = [];
+    let t = 0;
+    for (let i = 0; i < introStrokes.length; i++) {
+      const s = introStrokes[i];
+      timeline.push({ start: t, end: t + s.duration });
+      t += s.duration + (s.gap ?? 0.06);
+    }
+    return { entries: timeline, totalDuration: t };
+  }, [introStrokes]);
+
+  const introState = useRef({
+    currentStroke: -1,
+    startTime: -1,
+    pathStarted: false,
+    done: false,
+  });
+  const introActiveRef = useRef(introActive);
+  introActiveRef.current = introActive;
+  const onIntroDoneRef = useRef(onIntroDone);
+  onIntroDoneRef.current = onIntroDone;
+  const introTarget = useRef(new THREE.Vector2(0.5, 0.5));
+
   const dispRef = useRef<THREE.ShaderMaterial>(null);
 
+  // Physics-based brush easing — models real brush-on-paper dynamics
+  // Brush has mass, paper has friction, arm has natural swing arc
+  function brushEase(t: number): number {
+    // Ink contact phase — wet brush meets paper, friction + ink absorption
+    // creates drag. Cubic ease-in models static friction breaking.
+    if (t < 0.12) {
+      const n = t / 0.12;
+      return n * n * n * 0.12;
+    }
+    // Momentum build — arm accelerates, brush overcomes paper friction
+    // Smooth transition from drag to flow (quadratic acceleration)
+    if (t < 0.3) {
+      const n = (t - 0.12) / 0.18;
+      return 0.12 + n * n * 0.18;
+    }
+    // Inertial cruise — brush carried by arm momentum
+    // Smootherstep (Perlin): zero acceleration at both boundaries,
+    // models natural arm swing where force is constant
+    if (t < 0.8) {
+      const n = (t - 0.3) / 0.5;
+      const s = n * n * n * (n * (n * 6 - 15) + 10); // smootherstep
+      return 0.30 + s * 0.50;
+    }
+    // Deceleration — arm extends, brush lifts naturally
+    // Quadratic ease-out models friction + gravity slowing the stroke
+    const n = (t - 0.8) / 0.2;
+    return 0.80 + (1 - (1 - n) * (1 - n)) * 0.20;
+  }
+
   useFrame(({ clock }) => {
-    // Smooth mouse with lerp
-    mousePrev.current.copy(mouseSmooth.current);
-    if (hasMoved.current) {
-      mouseSmooth.current.lerp(mouseRaw.current, 0.12);
+    const u = stampMat.uniforms;
+    const elapsed = clock.elapsedTime;
+
+    // Intro animation — draw 潘 character stroke by stroke
+    if (introActiveRef.current && !introState.current.done) {
+      const st = introState.current;
+      if (st.startTime < 0) st.startTime = elapsed;
+
+      const introElapsed = elapsed - st.startTime;
+
+      if (introElapsed > strokeTimeline.totalDuration) {
+        st.done = true;
+        u.uActive.value = 0;
+        onIntroDoneRef.current?.();
+      } else {
+        // Find which stroke we're on
+        let strokeIdx = -1;
+        let strokeProgress = 0;
+        let isDrawing = false;
+
+        for (let i = 0; i < strokeTimeline.entries.length; i++) {
+          const { start, end } = strokeTimeline.entries[i];
+          if (introElapsed >= start && introElapsed <= end) {
+            strokeIdx = i;
+            strokeProgress = (introElapsed - start) / (end - start);
+            isDrawing = true;
+            break;
+          }
+          // In a gap
+          if (introElapsed < start) break;
+        }
+
+        if (!isDrawing) {
+          u.uActive.value = 0;
+        } else {
+          if (strokeIdx !== st.currentStroke) {
+            st.currentStroke = strokeIdx;
+            st.pathStarted = false;
+          }
+
+          const stroke = introStrokes[strokeIdx];
+          const eased = brushEase(Math.min(strokeProgress, 1));
+          const pts = stroke.points;
+          const rawIdx = eased * (pts.length - 1);
+          const lo = Math.floor(rawIdx);
+          const hi = Math.min(lo + 1, pts.length - 1);
+          const frac = rawIdx - lo;
+
+          const tx = pts[lo].x + (pts[hi].x - pts[lo].x) * frac;
+          const ty = pts[lo].y + (pts[hi].y - pts[lo].y) * frac;
+          introTarget.current.set(tx, ty);
+
+          if (!st.pathStarted) {
+            mouseSmooth.current.set(tx, ty);
+            mousePrev.current.set(tx, ty);
+            st.pathStarted = true;
+            u.uActive.value = 0;
+          } else {
+            mousePrev.current.copy(mouseSmooth.current);
+            mouseSmooth.current.lerp(introTarget.current, 0.45);
+            u.uActive.value = 1;
+          }
+        }
+      }
+    } else {
+      // Normal mouse mode
+      mousePrev.current.copy(mouseSmooth.current);
+      if (hasMoved.current) {
+        mouseSmooth.current.lerp(mouseRaw.current, 0.12);
+      }
+      u.uActive.value = hasMoved.current ? 1 : 0;
+      // Smoothly ramp drift on after intro completes
+      u.uDrift.value = Math.min(1, u.uDrift.value + 0.005);
     }
 
     const wr = targets[pingPong.current];
     const rd = targets[1 - pingPong.current];
 
-    // Update stamp uniforms
-    const u = stampMat.uniforms;
     u.uPrev.value = rd.texture;
     u.uMouse.value.copy(mouseSmooth.current);
     u.uPrevMouse.value.copy(mousePrev.current);
-    u.uTime.value = clock.elapsedTime;
-    u.uActive.value = hasMoved.current ? 1 : 0;
+    u.uTime.value = elapsed;
 
-    // Render stamp pass to FBO
     gl.setRenderTarget(wr);
     gl.render(offScene, offCam);
     gl.setRenderTarget(null);
 
-    // Feed the display quad
     if (dispRef.current) {
       dispRef.current.uniforms.uHeight.value = wr.texture;
       dispRef.current.uniforms.uRes.value.set(wr.width, wr.height);
@@ -403,7 +686,17 @@ function PaintScene() {
    Exported component
    ─────────────────────────────────────────────────────── */
 
-export default function BrushstrokeRelief() {
+interface BrushstrokeReliefProps {
+  onReady?: () => void;
+  introActive?: boolean;
+  onIntroDone?: () => void;
+}
+
+export default function BrushstrokeRelief({
+  onReady,
+  introActive,
+  onIntroDone,
+}: BrushstrokeReliefProps) {
   return (
     <div className="brushstroke-canvas">
       <Canvas
@@ -411,7 +704,11 @@ export default function BrushstrokeRelief() {
         camera={{ position: [0, 0, 1] }}
         style={{ background: "transparent" }}
       >
-        <PaintScene />
+        <PaintScene
+          onReady={onReady}
+          introActive={introActive}
+          onIntroDone={onIntroDone}
+        />
       </Canvas>
     </div>
   );
