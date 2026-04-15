@@ -1,7 +1,7 @@
 "use client";
 
 import { AnimatePresence } from "framer-motion";
-import PageTransition from "@/components/PageTransition";
+import InkTransition from "@/components/InkTransition";
 import { usePathname } from "next/navigation";
 
 export default function Template({ children }: { children: React.ReactNode }) {
@@ -9,7 +9,7 @@ export default function Template({ children }: { children: React.ReactNode }) {
 
   return (
     <AnimatePresence mode="wait">
-      <PageTransition key={pathname}>{children}</PageTransition>
+      <InkTransition key={pathname}>{children}</InkTransition>
     </AnimatePresence>
   );
 }
