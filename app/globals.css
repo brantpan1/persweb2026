@@ -423,6 +423,12 @@ body {
   gap: var(--space-md);
   position: relative;
   z-index: 1;
+  mix-blend-mode: difference;
+  color: #fff;
+}
+
+.hero-text-3d * {
+  color: inherit;
 }
 
 /* ==================== */

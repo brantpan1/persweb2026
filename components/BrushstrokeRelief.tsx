@@ -112,32 +112,32 @@ void main() {
     // Width ranges from 0.55x (moving along brush axis) to 1.3x (perpendicular)
     float dirWidth = 0.55 + dirEffect * 0.75;
 
-    float r = (0.014 + spd * 0.02) * dirWidth * (1.0 + smoothstep(0.008, 0.04, spd) * 0.15) * (0.85 + wobble * 0.3);
+    float r = (0.024 + spd * 0.03) * dirWidth * (1.0 + smoothstep(0.008, 0.04, spd) * 0.15) * (0.9 + wobble * 0.2);
 
-    // Irregular brush boundary — distort the distance field
-    float boundaryNoise = fbm(vec2(atan(rd.y, rd.x) * 3.0 + t * 10.0, length(rd) * 50.0));
-    float d = length(rd) + (boundaryNoise - 0.5) * r * 0.35;
+    // Smooth brush boundary — subtle distortion for organic feel without jaggedness
+    float boundaryNoise = noise(vec2(atan(rd.y, rd.x) * 2.0 + t * 5.0, length(rd) * 30.0));
+    float d = length(rd) + (boundaryNoise - 0.5) * r * 0.12;
 
-    // Soft falloff
-    float stroke = exp(-d * d / (r * r * 0.4));
-    stroke *= smoothstep(r * 1.6, r * 0.35, d);
+    // Smooth falloff — wide gaussian for clean calligraphic edges
+    float stroke = exp(-d * d / (r * r * 0.5));
+    stroke *= smoothstep(r * 1.3, r * 0.4, d);
 
-    // Multi-scale bristle texture via FBM
-    vec2 bristleCoord = vec2(rd.x * 18.0, rd.y * 280.0);
-    float bristle = fbm(bristleCoord + vec2(uTime * 0.04, ang * 0.5));
+    // Subtle bristle texture — mostly solid with gentle variation
+    vec2 bristleCoord = vec2(rd.x * 12.0, rd.y * 180.0);
+    float bristle = noise(bristleCoord + vec2(uTime * 0.04, ang * 0.5));
 
-    // Bristle gaps stronger at edges, solid core
+    // Bristle only at outer edges, solid core — smooth calligraphy look
     float edgeDist = abs(rd.y) / max(r, 0.001);
-    float edgeMask = smoothstep(0.2, 0.8, edgeDist);
-    bristle = mix(1.0, smoothstep(0.18, 0.55, bristle), edgeMask * 0.85);
+    float edgeMask = smoothstep(0.4, 0.9, edgeDist);
+    bristle = mix(1.0, smoothstep(0.3, 0.6, bristle), edgeMask * 0.4);
 
-    // Flying white — dry-brush at speed
-    float dryness = smoothstep(0.01, 0.05, spd);
-    float dryNoise = fbm(uv * 80.0 + vec2(ang, uTime * 0.03));
-    bristle = mix(bristle, bristle * smoothstep(0.1, 0.6, dryNoise), dryness * 0.55);
+    // Flying white — very subtle, only at high speed
+    float dryness = smoothstep(0.02, 0.06, spd);
+    float dryNoise = noise(uv * 60.0 + vec2(ang, uTime * 0.03));
+    bristle = mix(bristle, bristle * smoothstep(0.2, 0.7, dryNoise), dryness * 0.3);
 
-    // Paper grain interaction — ink sinks into paper texture
-    stroke *= grainMask;
+    // Light paper grain interaction
+    stroke *= mix(1.0, grainMask, 0.4);
 
     stroke *= bristle;
     deposit = max(deposit, stroke);
