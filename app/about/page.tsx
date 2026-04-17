@@ -3,7 +3,13 @@
 import { useEffect } from "react";
 import Lenis from "lenis";
 import Navigation from "@/components/Navigation";
-import TextReveal from "@/components/TextReveal";
+
+const timeline = [
+  { year: "2022", event: "Started at Northeastern", context: "CS + Design" },
+  { year: "2024", event: "MORSE", context: "Interface Design" },
+  { year: "2024", event: "Priceline", context: "Frontend, Travel Search" },
+  { year: "Now", event: "Independent", context: "Selected commissions" },
+];
 
 export default function About() {
   useEffect(() => {
@@ -12,12 +18,10 @@ export default function About() {
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
     });
-
     function raf(time: number) {
       lenis.raf(time);
       requestAnimationFrame(raf);
     }
-
     requestAnimationFrame(raf);
     return () => lenis.destroy();
   }, []);
@@ -26,58 +30,65 @@ export default function About() {
     <main className="page about-page">
       <Navigation />
 
-      <section className="page-header">
-        <span className="label">
-          <TextReveal delay={0.3} duration={0.6}>
-            About
-          </TextReveal>
-        </span>
-        <h1 className="heading-1">
-          <TextReveal delay={0.5} duration={1}>
-            Background
-          </TextReveal>
-        </h1>
+      <header className="page-header">
+        <div className="page-header-meta">
+          <span className="running-head">About</span>
+          <span className="running-head">Brant Pan · Designer / Developer</span>
+        </div>
+        <h1 className="page-header-title">Background</h1>
+      </header>
+
+      <section className="about-bipartite">
+        <aside className="about-meta">
+          <div className="about-meta-row">
+            <span className="label">Location</span>
+            <span className="value">Boston, MA</span>
+          </div>
+          <div className="about-meta-row">
+            <span className="label">Focus</span>
+            <span className="value">Interface · Motion · Identity</span>
+          </div>
+          <div className="about-meta-row">
+            <span className="label">Education</span>
+            <span className="value">Northeastern University</span>
+          </div>
+          <div className="about-meta-row">
+            <span className="label">Available</span>
+            <span className="value">Selected commissions, 2026</span>
+          </div>
+        </aside>
+
+        <div className="about-prose">
+          <p>
+            I design and build websites that feel intentional. The work
+            sits between editorial typography and experimental motion —
+            calligraphic where it can be, brutalist where it should be.
+          </p>
+          <p>
+            Currently studying Computer Science and Design at Northeastern
+            University. Previously at Priceline and MORSE, working on
+            interfaces that bridge function and feeling.
+          </p>
+          <p>
+            Outside the screen: Chinese brush calligraphy, long-form
+            reading, and the slow craft of getting a single layout right.
+          </p>
+        </div>
       </section>
 
-      <section className="about-content">
-        <div className="about-grid">
-          <div className="about-col">
-            <p className="body">
-              <TextReveal delay={0.7} duration={0.8}>
-                I design and build websites that feel intentional.
-              </TextReveal>
-            </p>
-            <p className="body">
-              <TextReveal delay={0.9} duration={0.8}>
-                Currently studying Computer Science and Design at Northeastern University.
-              </TextReveal>
-            </p>
-          </div>
-          <div className="about-col">
-            <p className="body">
-              <TextReveal delay={1.1} duration={0.8}>
-                Previously at Priceline and MORSE, working on interfaces that bridge function and feeling.
-              </TextReveal>
-            </p>
-          </div>
+      <section className="about-timeline">
+        <div className="about-timeline-head">
+          <span>Year</span>
+          <span>Event</span>
+          <span>Context</span>
         </div>
-
-        <div className="about-timeline">
-          <div className="timeline-item">
-            <span className="label">2022</span>
-            <span className="body-small">Started at Northeastern</span>
+        {timeline.map((row) => (
+          <div key={`${row.year}-${row.event}`} className="about-timeline-row">
+            <span className="col-year">{row.year}</span>
+            <span>{row.event}</span>
+            <span>{row.context}</span>
           </div>
-          <div className="timeline-divider"></div>
-          <div className="timeline-item">
-            <span className="label">2024</span>
-            <span className="body-small">MORSE, Priceline</span>
-          </div>
-          <div className="timeline-divider"></div>
-          <div className="timeline-item">
-            <span className="label">Now</span>
-            <span className="body-small">Freelance</span>
-          </div>
-        </div>
+        ))}
       </section>
     </main>
   );

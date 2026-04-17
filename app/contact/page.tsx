@@ -3,7 +3,6 @@
 import { useEffect } from "react";
 import Lenis from "lenis";
 import Navigation from "@/components/Navigation";
-import TextReveal from "@/components/TextReveal";
 
 export default function Contact() {
   useEffect(() => {
@@ -12,12 +11,10 @@ export default function Contact() {
       easing: (t) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
       smoothWheel: true,
     });
-
     function raf(time: number) {
       lenis.raf(time);
       requestAnimationFrame(raf);
     }
-
     requestAnimationFrame(raf);
     return () => lenis.destroy();
   }, []);
@@ -26,39 +23,46 @@ export default function Contact() {
     <main className="page contact-page">
       <Navigation />
 
-      <section className="page-header">
-        <span className="label">
-          <TextReveal delay={0.3} duration={0.6}>
-            Contact
-          </TextReveal>
-        </span>
-        <h1 className="heading-1">
-          <TextReveal delay={0.5} duration={1}>
-            Get in touch
-          </TextReveal>
-        </h1>
-      </section>
+      <header className="page-header">
+        <div className="page-header-meta">
+          <span className="running-head">Contact</span>
+          <span className="running-head">Boston, MA · Available 2026</span>
+        </div>
+        <h1 className="page-header-title">Hello</h1>
+      </header>
 
-      <section className="contact-content">
-        <a href="mailto:brant.pan3@gmail.com" className="contact-email display-small">
-          <TextReveal delay={0.8} duration={1}>
-            brant.pan3@gmail.com
-          </TextReveal>
+      <section className="contact-rows">
+        <a
+          href="mailto:brant.pan3@gmail.com"
+          className="contact-row is-primary"
+        >
+          <span className="label">Email</span>
+          <span className="value">brant.pan3@gmail.com</span>
         </a>
 
-        <div className="contact-links">
-          <a
-            href="https://github.com/brantpan1"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="contact-link body"
-          >
-            Github
-          </a>
-        </div>
+        <a
+          href="https://github.com/brantpan1"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="contact-row"
+        >
+          <span className="label">Build</span>
+          <span className="value external-link">Github · brantpan1</span>
+        </a>
 
-        <div className="contact-footer">
-          <span className="label">Boston, MA</span>
+        <a
+          href="https://www.linkedin.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="contact-row"
+        >
+          <span className="label">Connect</span>
+          <span className="value external-link">LinkedIn</span>
+        </a>
+
+        <div className="contact-row">
+          <span className="label">Read</span>
+          <span className="value">Currently: Tschichold, Vignelli, Crouwel</span>
         </div>
       </section>
     </main>

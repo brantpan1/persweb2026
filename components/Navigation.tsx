@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
+import { useTransition } from "@/components/TransitionProvider";
 
 export default function Navigation() {
   const pathname = usePathname();
+  const { navigate } = useTransition();
   const [time, setTime] = useState("");
 
   useEffect(() => {
@@ -27,13 +28,17 @@ export default function Navigation() {
       <div className="nav-time">{time}</div>
       <nav className="nav-links">
         {links.map((link) => (
-          <Link
+          <a
             key={link.href}
             href={link.href}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate(link.href);
+            }}
             className={`nav-link ${pathname === link.href ? "active" : ""}`}
           >
             {link.label}
-          </Link>
+          </a>
         ))}
       </nav>
     </header>

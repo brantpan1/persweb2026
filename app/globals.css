@@ -5,7 +5,8 @@
   --fg: #000;
   --gray: #555;
   --gray-light: #ccc;
-  --font-serif: "Times New Roman", "Times", Georgia, serif;
+  --font-serif: var(--font-baskerville), "Baskerville", "Libre Baskerville", "Times New Roman", Georgia, serif;
+  --font-sans: var(--font-inter), "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
   /* Spacing */
   --space-xs: 0.5rem;
@@ -33,12 +34,11 @@
 }
 
 * {
-  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12'%3E%3Ccircle cx='6' cy='6' r='3.5' fill='%23000' fill-opacity='.45'/%3E%3Ccircle cx='6' cy='6' r='1.5' fill='%23000' fill-opacity='.8'/%3E%3C/svg%3E") 6 6, default;
+  cursor: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 28 28'%3E%3Cellipse cx='14' cy='14' rx='7' ry='10' transform='rotate(-38 14 14)' fill='%23000' fill-opacity='.18'/%3E%3Cellipse cx='14' cy='14' rx='4' ry='7' transform='rotate(-38 14 14)' fill='%23000' fill-opacity='.95'/%3E%3C/svg%3E") 14 14, default;
 }
 
-a, button {
-  cursor: pointer;
-}
+/* Keep the brush-tip cursor across interactive elements too — hover animations
+   (brush underline, letter-spacing shift) provide the click affordance. */
 
 html {
   font-size: 16px;
@@ -55,7 +55,7 @@ html.lenis, html.lenis body {
 body {
   background: var(--bg);
   color: var(--fg);
-  font-family: var(--font-serif);
+  font-family: var(--font-sans);
   overflow-x: hidden;
   line-height: 1.5;
 }
@@ -63,6 +63,16 @@ body {
 ::selection {
   background: var(--fg);
   color: var(--bg);
+}
+
+/* ==================== */
+/* PAGE TRANSITION      */
+/* ==================== */
+
+/* The brush canvas itself IS the transition: brush draws the destination
+   character via mix-blend-mode: difference while the page wrapper fades. */
+.page-fade-wrapper {
+  will-change: opacity;
 }
 
 /* ==================== */
@@ -98,6 +108,26 @@ body {
   position: relative;
   z-index: 1;
   will-change: opacity;
+  opacity: 0;
+  transition: opacity 800ms cubic-bezier(0.6, 0, 0.2, 1);
+}
+
+.intro-content-wrapper.is-revealed {
+  opacity: 1;
+}
+
+/* During brush drawing (intro or any page transition), hide ALL page content.
+   The brush canvas is the only visual. When the morph completes, content
+   fades back in over 600ms — title is filled by the brush ink, then HTML
+   text takes over as the ink decays. */
+.page > * {
+  transition: opacity 600ms cubic-bezier(0.6, 0, 0.2, 1);
+}
+
+.brush-forming-title .page > *,
+.brush-forming-title .intro-content-wrapper.is-revealed {
+  opacity: 0 !important;
+  transition: opacity 80ms linear !important;
 }
 
 /* SVG Filters */
@@ -114,6 +144,7 @@ body {
 /* ==================== */
 
 .display {
+  font-family: var(--font-serif);
   font-size: var(--text-display);
   font-weight: 400;
   font-style: italic;
@@ -122,6 +153,7 @@ body {
 }
 
 .display-small {
+  font-family: var(--font-serif);
   font-size: var(--text-display-sm);
   font-weight: 400;
   font-style: italic;
@@ -130,6 +162,7 @@ body {
 }
 
 .heading-1 {
+  font-family: var(--font-serif);
   font-size: var(--text-4xl);
   font-weight: 400;
   font-style: italic;
@@ -138,6 +171,7 @@ body {
 }
 
 .heading-2 {
+  font-family: var(--font-serif);
   font-size: var(--text-2xl);
   font-weight: 400;
   font-style: italic;
@@ -146,6 +180,7 @@ body {
 }
 
 .heading-3 {
+  font-family: var(--font-serif);
   font-size: var(--text-xl);
   font-weight: 400;
   font-style: italic;
@@ -183,12 +218,37 @@ body {
 }
 
 .label {
-  font-size: var(--text-xs);
+  font-size: 0.6875rem; /* 11px */
+  font-weight: 500;
+  font-style: normal;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg);
+  line-height: 1.2;
+}
+
+/* Running head — used at top of every page (e.g., "WORK — INDEX") */
+.running-head {
+  font-size: 0.75rem; /* 12px */
   font-weight: 400;
   font-style: normal;
-  letter-spacing: 0.2em;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--gray);
+  color: var(--fg);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Brutalist hairline rule. 1px solid currentColor, full-bleed within container. */
+.hairline {
+  border: 0;
+  border-top: 1px solid currentColor;
+  margin: 0;
+}
+
+/* Tabular figures — for indices, years, anything numeric in a column */
+.tabular {
+  font-variant-numeric: tabular-nums lining-nums;
 }
 
 /* ==================== */
@@ -319,13 +379,11 @@ body {
   align-items: center;
   padding: var(--space-md) var(--space-lg);
   z-index: 100;
-  mix-blend-mode: difference;
 }
 
 .nav-time {
   font-size: var(--text-sm);
-  font-style: italic;
-  color: #fff;
+  color: var(--fg);
 }
 
 .nav-links {
@@ -335,32 +393,37 @@ body {
 
 .nav-link {
   font-size: var(--text-sm);
-  font-style: italic;
   text-decoration: none;
-  color: #fff;
+  color: var(--fg);
   position: relative;
-  transition: opacity 0.3s;
 }
 
-.nav-link:hover {
-  opacity: 0.6;
-}
-
-.nav-link.active {
-  opacity: 1;
-}
-
+/* Brush-stroke underline: solid fg color clipped through an SVG mask shaped
+   like an ink brush stroke (varying thickness, slightly bumpy edges).
+   clip-path animates left→right with cubic-bezier approximating brushEase
+   (slow start → fast cruise → smooth exit). */
 .nav-link::after {
   content: '';
   position: absolute;
-  bottom: -4px;
   left: 0;
-  width: 100%;
-  height: 1px;
-  background: #fff;
-  transform: scaleX(0);
-  transform-origin: right;
-  transition: transform 0.3s ease;
+  right: 0;
+  bottom: -8px;
+  height: 9px;
+  background: var(--fg);
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 9' preserveAspectRatio='none'%3E%3Cpath d='M1 4.6 C8 3 16 5.2 28 4.4 S52 5.4 70 3.6 S90 5.2 99 4.5 L99 5.5 C90 6.6 70 5.4 52 6.4 S28 5.6 16 6.4 C8 6.4 1 5.6 1 4.6 Z' fill='%23000'/%3E%3C/svg%3E");
+          mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 9' preserveAspectRatio='none'%3E%3Cpath d='M1 4.6 C8 3 16 5.2 28 4.4 S52 5.4 70 3.6 S90 5.2 99 4.5 L99 5.5 C90 6.6 70 5.4 52 6.4 S28 5.6 16 6.4 C8 6.4 1 5.6 1 4.6 Z' fill='%23000'/%3E%3C/svg%3E");
+  -webkit-mask-size: 100% 100%;
+          mask-size: 100% 100%;
+  -webkit-mask-repeat: no-repeat;
+          mask-repeat: no-repeat;
+  clip-path: inset(0 100% 0 0);
+  transition: clip-path 0.55s cubic-bezier(0.6, 0, 0.2, 1);
+  pointer-events: none;
+}
+
+.nav-link:hover::after,
+.nav-link.active::after {
+  clip-path: inset(0 0 0 0);
 }
 
 .nav-link.active::after {
@@ -374,21 +437,47 @@ body {
 
 .page {
   min-height: 100vh;
-  padding: var(--space-xl) var(--space-lg);
-  padding-top: calc(var(--space-xl) + var(--space-lg));
+  padding: 6rem max(5vw, 4rem) 6rem;
+  padding-top: 8rem;
   position: relative;
+  max-width: 100%;
 }
 
+/* Brutalist page header: running head top, hairline, large display title.
+   Two-zone structure (running head left, optional meta right). */
 .page-header {
-  margin-bottom: var(--space-xl);
+  margin-bottom: 6rem;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  row-gap: 2rem;
   border-bottom: 1px solid var(--fg);
-  padding-bottom: var(--space-lg);
+  padding-bottom: 1.5rem;
 }
 
-.page-header .label {
-  margin-bottom: var(--space-sm);
-  display: block;
+.page-header-meta {
+  grid-column: 1 / -1;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-variant-numeric: tabular-nums;
 }
+
+.page-header-title {
+  grid-column: 1 / -1;
+  font-family: var(--font-serif);
+  font-size: clamp(3rem, 7vw, 5rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1;
+  letter-spacing: -0.01em;
+  margin: 0;
+  transition: opacity 500ms cubic-bezier(0.6, 0, 0.2, 1);
+}
+
+/* The .brush-forming-title .page > * rule above (in INTRO OVERLAY section)
+   handles hiding the title during transitions — applies to all .page direct
+   children including .page-header. */
 
 /* ==================== */
 /* HOME PAGE            */
@@ -423,8 +512,7 @@ body {
   gap: var(--space-md);
   position: relative;
   z-index: 1;
-  mix-blend-mode: difference;
-  color: #fff;
+  color: var(--fg);
 }
 
 .hero-text-3d * {
@@ -436,19 +524,22 @@ body {
 /* ==================== */
 
 .brushstroke-canvas {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 0;
-  pointer-events: auto;
+  width: 100vw;
+  height: 100vh;
+  z-index: 9500;
+  pointer-events: none;
+  mix-blend-mode: difference;
 }
 
-.brushstroke-canvas canvas {
+.brushstroke-canvas canvas,
+.brushstroke-canvas > div {
   display: block;
   width: 100%;
   height: 100%;
+  pointer-events: none !important;
 }
 
 .text-3d-line {
@@ -498,134 +589,217 @@ body {
 /* WORK PAGE            */
 /* ==================== */
 
-.work-list {
+/* Tabular index: №, NAME, TYPE, YEAR — Vignelli/Crouwel inspired.
+   Hairline-separated rows, 11px tracked-caps column headers. */
+.work-table {
+  display: grid;
+  grid-template-columns: 4ch 1fr 12rem 6rem;
+  column-gap: 2rem;
   border-top: 1px solid var(--fg);
 }
 
-.work-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--space-lg) 0;
+.work-table-head,
+.work-table-row {
+  display: contents;
+}
+
+.work-table-head > * {
+  padding: 0.75rem 0 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--fg);
   border-bottom: 1px solid var(--fg);
+}
+
+.work-table-row > * {
+  padding: 1.5rem 0;
+  border-bottom: 0.5px solid var(--fg);
+  display: flex;
+  align-items: baseline;
+}
+
+.work-table-row.is-link > * {
+  transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+.work-table-row.is-link:hover > * {
+  opacity: 0.5;
+}
+
+.work-table-row a,
+.work-table-row {
   text-decoration: none;
   color: inherit;
-  transition: background 0.2s, padding 0.2s;
 }
 
-.work-item:hover {
-  background: var(--fg);
-  color: var(--bg);
-  padding-left: var(--space-md);
-  padding-right: var(--space-md);
+.work-table .col-num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 0.75rem;
+  font-weight: 500;
 }
 
-.work-item-left {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-lg);
+.work-table .col-name {
+  font-family: var(--font-serif);
+  font-size: 1.75rem;
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
 }
 
-.work-index {
-  min-width: 2rem;
+.work-table .col-type {
+  font-size: 0.875rem;
 }
 
-.work-item-right {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-lg);
+.work-table .col-year {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: 0.875rem;
+  justify-content: flex-end;
+}
+
+.col-year-head {
+  text-align: right;
+  justify-content: flex-end !important;
 }
 
 /* ==================== */
 /* ABOUT PAGE           */
 /* ==================== */
 
-.about-content {
-  max-width: 900px;
-}
-
-.about-grid {
+/* Bipartite Unigrid: 3-col meta sidebar + 9-col content (≈ Vignelli) */
+.about-bipartite {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-xl);
-  margin-bottom: var(--space-xl);
+  grid-template-columns: 3fr 9fr;
+  column-gap: 4rem;
+  row-gap: 0;
+  margin-bottom: 6rem;
 }
 
-.about-col .body {
-  margin-bottom: var(--space-md);
-}
-
-.about-timeline {
-  display: flex;
-  align-items: stretch;
-  gap: 0;
-  border: 1px solid var(--fg);
-}
-
-.timeline-item {
-  flex: 1;
+.about-meta {
   display: flex;
   flex-direction: column;
-  gap: var(--space-xs);
-  padding: var(--space-md);
-  border-right: 1px solid var(--fg);
+  gap: 1.5rem;
 }
 
-.timeline-item:last-child {
-  border-right: none;
+.about-meta-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
 }
 
-.timeline-divider {
-  display: none;
+.about-meta-row .label {
+  display: block;
+}
+
+.about-meta-row .value {
+  font-size: 0.875rem;
+  line-height: 1.45;
+}
+
+.about-prose {
+  max-width: 62ch;
+}
+
+.about-prose p {
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0 0 1em;
+}
+
+.about-prose p:last-child {
+  margin-bottom: 0;
+}
+
+/* Timeline as a typographic table — hairlines only, no boxes/icons */
+.about-timeline {
+  display: grid;
+  grid-template-columns: 6rem 1fr 1fr;
+  column-gap: 2rem;
+  border-top: 1px solid var(--fg);
+}
+
+.about-timeline-head,
+.about-timeline-row {
+  display: contents;
+}
+
+.about-timeline-head > * {
+  padding: 0.75rem 0;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--fg);
+}
+
+.about-timeline-row > * {
+  padding: 1rem 0;
+  border-bottom: 0.5px solid var(--fg);
+  font-size: 0.9375rem;
+  line-height: 1.45;
+}
+
+.about-timeline-row .col-year {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 500;
 }
 
 /* ==================== */
 /* CONTACT PAGE         */
 /* ==================== */
 
-.contact-content {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xl);
-}
-
-.contact-email {
-  text-decoration: none;
-  color: inherit;
-  position: relative;
-  display: inline-block;
-  width: fit-content;
-  transition: background 0.2s, color 0.2s, padding 0.2s;
-}
-
-.contact-email:hover {
-  background: var(--fg);
-  color: var(--bg);
-  padding: 0 var(--space-sm);
-}
-
-.contact-links {
-  display: flex;
-  gap: var(--space-lg);
-}
-
-.contact-link {
-  text-decoration: none;
-  color: inherit;
-  border: 1px solid var(--fg);
-  padding: var(--space-sm) var(--space-md);
-  transition: background 0.2s, color 0.2s;
-}
-
-.contact-link:hover {
-  background: var(--fg);
-  color: var(--bg);
-}
-
-.contact-footer {
-  margin-top: auto;
-  padding-top: var(--space-lg);
+/* Vertical stack of label-value rows, hairline-separated.
+   Email gets the display treatment (Baskerville italic) as primary CTA. */
+.contact-rows {
   border-top: 1px solid var(--fg);
+}
+
+.contact-row {
+  display: grid;
+  grid-template-columns: 8rem 1fr;
+  column-gap: 2rem;
+  align-items: baseline;
+  padding: 1.25rem 0;
+  border-bottom: 0.5px solid var(--fg);
+  text-decoration: none;
+  color: inherit;
+  transition: opacity 120ms cubic-bezier(0.2, 0, 0, 1);
+}
+
+a.contact-row:hover {
+  opacity: 0.5;
+}
+
+.contact-row .label {
+  align-self: baseline;
+}
+
+.contact-row .value {
+  font-size: 1rem;
+  line-height: 1.45;
+}
+
+.contact-row.is-primary {
+  padding: 2rem 0;
+  align-items: baseline;
+}
+
+.contact-row.is-primary .value {
+  font-family: var(--font-serif);
+  font-size: clamp(1.75rem, 4vw, 3rem);
+  font-style: italic;
+  font-weight: 400;
+  line-height: 1.05;
+  letter-spacing: -0.005em;
+}
+
+.external-link::after {
+  content: " ↗";
+  font-style: normal;
+  display: inline-block;
+  margin-left: 0.15em;
 }
 
 /* ==================== */
@@ -649,55 +823,36 @@ body {
   }
 
   .page {
-    padding: var(--space-lg) var(--space-md);
-    padding-top: calc(var(--space-lg) + var(--space-xl));
+    padding: 4rem 1.25rem 4rem;
+    padding-top: 6rem;
   }
 
-  .hero-subtitle {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-xs);
+  .work-table {
+    grid-template-columns: 3ch 1fr 5rem;
+    column-gap: 1rem;
   }
 
-  .subtitle-divider {
+  .work-table .col-type {
     display: none;
   }
 
-  .hero-footer {
-    flex-direction: column;
-    gap: var(--space-sm);
+  .work-table .col-name {
+    font-size: 1.25rem;
   }
 
-  .about-grid {
+  .about-bipartite {
     grid-template-columns: 1fr;
-    gap: var(--space-lg);
-  }
-
-  .work-item {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: var(--space-sm);
-  }
-
-  .work-item-left {
-    gap: var(--space-md);
-  }
-
-  .work-item-right {
-    padding-left: calc(2rem + var(--space-md));
+    row-gap: 3rem;
   }
 
   .about-timeline {
-    flex-direction: column;
+    grid-template-columns: 4rem 1fr 1fr;
+    column-gap: 1rem;
   }
 
-  .timeline-item {
-    border-right: none;
-    border-bottom: 1px solid var(--fg);
-  }
-
-  .timeline-item:last-child {
-    border-bottom: none;
+  .contact-row {
+    grid-template-columns: 6rem 1fr;
+    column-gap: 1rem;
   }
 
   .brutalist-line,
